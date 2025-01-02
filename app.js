@@ -1,85 +1,150 @@
-const express = require('express');
-var app = express();
-var upload = require('express-fileupload');
-var docxConverter = require('docx-pdf');
-var path = require('path');
-var fs = require('fs');
+const express = require("express");
+const fs = require("fs");
+const path = require("path");
+const puppeteer = require("puppeteer");
 
-const extend_pdf = '.pdf'
-const extend_docx = '.docx'
+const app = express();
+const PORT = 3000;
 
-var down_name
+// Middleware to parse JSON request body
+app.use(express.json());
 
-app.use(upload());
+// Path to the default template
+const templatePath = path.join(__dirname, "templates", "finalLast.html");
 
- 
-app.get('/',function(req,res){
-  res.sendFile(__dirname+'/index.html');
-})
-app.post('/upload',function(req,res){
-  console.log(req.files);
-  if(req.files.upfile){
-    var file = req.files.upfile,
-      name = file.name,
-      type = file.mimetype;
-    //File where .docx will be downloaded  
-    var uploadpath = __dirname + '/uploads/' + name;
-    //Name of the file --ex test,example
-    const First_name = name.split('.')[0];
-    //Name to download the file
-    down_name = First_name;
-    file.mv(uploadpath,function(err){
-      if(err){
-        console.log(err);
-      }else{
-        //Path of the downloaded or uploaded file
-        var initialPath = path.join(__dirname, `./uploads/${First_name}${extend_docx}`);
-        //Path where the converted pdf will be placed/uploaded
-        var upload_path = path.join(__dirname, `./uploads/${First_name}${extend_pdf}`);
-        //Converter to convert docx to pdf -->docx-pdf is used
-        //If you want you can use any other converter
-        //For example -- libreoffice-convert or --awesome-unoconv
-        docxConverter(initialPath,upload_path,function(err,result){
-        if(err){
-          console.log(err);
+app.post("/convert", async (req, res) => {
+  const { replacements } = req.body;
+
+  // Validate input
+  if (!replacements || !Array.isArray(replacements)) {
+    return res.status(400).send("Invalid input: 'replacements' must be an array.");
+  }
+
+  try {
+    // Read the default HTML template
+    let htmlContent = fs.readFileSync(templatePath, "utf-8");
+
+    // Perform search and replace for each pair
+    for (const { searchWord, replaceWord } of replacements) {
+      if (searchWord !== undefined && replaceWord !== undefined) {
+        const regex = new RegExp(searchWord, "g");
+
+        if (typeof replaceWord === "string" && (replaceWord.startsWith("data:image") || replaceWord.startsWith("http"))) {
+          // Handle image replacement
+          htmlContent = htmlContent.replace(regex, `<img src="${replaceWord}" style="width: 550px; height: 400px;" />`);
+        } else {
+          if ( replaceWord == "notFound" || replaceWord == "" ) {
+            console.log("replaceWord", replaceWord , replaceWord == "");
+
+            // Handle empty string replacement
+            htmlContent = htmlContent.replace(regex, " ");
+  
+   }else{
+          // Regular text replacement or empty string
+          htmlContent = htmlContent.replace(regex, replaceWord);
+
+   }
         }
-        console.log('result'+result);
-        res.sendFile(__dirname+'/down_html.html')
-        });
+      } else {
+
+        console.error(`Invalid replacement for ${searchWord}.`);
       }
+    }
+
+    // Launch Puppeteer to generate the PDF
+    const browser = await puppeteer.launch();
+    const page = await browser.newPage();
+    await page.setContent(htmlContent, { waitUntil: "load" });
+
+    // Save PDF to file
+    const pdfPath = path.join(__dirname, "converted", "contrat.pdf");
+    await page.pdf({ path: pdfPath, format: "A4" });
+    await browser.close();
+
+    // Send the PDF file as response
+    res.sendFile(pdfPath, (err) => {
+      if (err) {
+        console.error("Error sending file:", err);
+        res.status(500).send("Failed to send the PDF file.");
+      }
+
+      // Clean up the temporary file
+      fs.unlinkSync(pdfPath);
     });
-  }else{
-    res.send("No File selected !");
-    res.end();
+  } catch (error) {
+    console.error("Error during conversion:", error);
+    res.status(500).send("An error occurred during HTML to PDF conversion.");
   }
 });
 
-app.get('/download', (req,res) =>{
-  //This will be used to download the converted file
-  res.download(__dirname +`/uploads/${down_name}${extend_pdf}`,`${down_name}${extend_pdf}`,(err) =>{
-    if(err){
-      res.send(err);
-    }else{
-      //Delete the files from directory after the use
-      console.log('Files deleted');
-      const delete_path_doc = process.cwd() + `/uploads/${down_name}${extend_docx}`;
-      const delete_path_pdf = process.cwd() + `/uploads/${down_name}${extend_pdf}`;
-      try {
-        fs.unlinkSync(delete_path_doc)
-        fs.unlinkSync(delete_path_pdf)
-        //file removed
-      } catch(err) {
-      console.error(err)
+const templatePaths = path.join(__dirname, "templates", "facture.html");
+
+app.post("/convertFacture", async (req, res) => {
+  const { replacements } = req.body;
+
+  // Validate input
+  if (!replacements || !Array.isArray(replacements)) {
+    return res.status(400).send("Invalid input: 'replacements' must be an array.");
+  }
+
+  try {
+    // Read the default HTML template
+    let htmlContent = fs.readFileSync(templatePaths, "utf-8");
+
+    // Perform search and replace for each pair
+    for (const { searchWord, replaceWord } of replacements) {
+      if (searchWord !== undefined && replaceWord !== undefined) {
+        const regex = new RegExp(searchWord, "g");
+
+        if (typeof replaceWord === "string" && (replaceWord.startsWith("data:image") || replaceWord.startsWith("http"))) {
+          // Handle image replacement
+          htmlContent = htmlContent.replace(regex, `<img src="${replaceWord}" style="width: 700px; height: 500px;" />`);
+        } else {
+          if ( replaceWord == "notFound" || replaceWord == "" ) {
+            console.log("replaceWord", replaceWord , replaceWord == "");
+
+            // Handle empty string replacement
+            htmlContent = htmlContent.replace(regex, " ");
+  
+   }else{
+          // Regular text replacement or empty string
+          htmlContent = htmlContent.replace(regex, replaceWord);
+
+   }
+        }
+      } else {
+
+        console.error(`Invalid replacement for ${searchWord}.`);
       }
     }
-  })
-})
 
-app.get('/thankyou',(req,res) => {
-    res.sendFile(__dirname+'/thankyou.html')
-})
+    // Launch Puppeteer to generate the PDF
+    const browser = await puppeteer.launch();
+    const page = await browser.newPage();
+    await page.setContent(htmlContent, { waitUntil: "load" });
 
-  
-app.listen(3000,() => {
-    console.log("Server Started at port 3000...");
-})
+    // Save PDF to file
+    const pdfPath = path.join(__dirname, "converted", "contrat.pdf");
+    await page.pdf({ path: pdfPath, format: "A4" });
+    await browser.close();
+
+    // Send the PDF file as response
+    res.sendFile(pdfPath, (err) => {
+      if (err) {
+        console.error("Error sending file:", err);
+        res.status(500).send("Failed to send the PDF file.");
+      }
+
+      // Clean up the temporary file
+      fs.unlinkSync(pdfPath);
+    });
+  } catch (error) {
+    console.error("Error during conversion:", error);
+    res.status(500).send("An error occurred during HTML to PDF conversion.");
+  }
+});
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(`Server is running at http://localhost:${PORT}`);
+});
