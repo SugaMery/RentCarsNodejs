@@ -1,7 +1,7 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
-const pdf = require("html-pdf");
+const puppeteer = require("puppeteer");
 
 const app = express();
 const PORT = 3000;
@@ -50,23 +50,30 @@ app.post("/convert", (req, res) => {
 
     // Generate the PDF
     const pdfPath = path.join(__dirname, "converted", "contrat.pdf");
-    pdf.create(htmlContent).toFile(pdfPath, (err, result) => {
-      if (err) {
+    (async () => {
+      try {
+        const browser = await puppeteer.launch();
+        const page = await browser.newPage();
+        await page.setContent(htmlContent);
+        await page.pdf({ path: pdfPath, format: 'A4' });
+
+        await browser.close();
+
+        // Send the PDF file as response
+        res.sendFile(pdfPath, (err) => {
+          if (err) {
+            console.error("Error sending file:", err);
+            res.status(500).send("Failed to send the PDF file.");
+          }
+
+          // Clean up the temporary file
+          fs.unlinkSync(pdfPath);
+        });
+      } catch (err) {
         console.error("Error generating PDF:", err);
-        return res.status(500).send("An error occurred during HTML to PDF conversion.");
+        res.status(500).send("An error occurred during HTML to PDF conversion.");
       }
-
-      // Send the PDF file as response
-      res.sendFile(result.filename, (err) => {
-        if (err) {
-          console.error("Error sending file:", err);
-          res.status(500).send("Failed to send the PDF file.");
-        }
-
-        // Clean up the temporary file
-        fs.unlinkSync(result.filename);
-      });
-    });
+    })();
   } catch (error) {
     console.error("Error during conversion:", error);
     res.status(500).send("An error occurred during HTML to PDF conversion.");
