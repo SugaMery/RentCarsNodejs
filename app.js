@@ -1,7 +1,7 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
-const puppeteer = require("puppeteer");
+const pdf = require("html-pdf");
 
 const app = express();
 const PORT = 3000;
@@ -12,7 +12,7 @@ app.use(express.json());
 // Path to the default template
 const templatePath = path.join(__dirname, "templates", "finalLast.html");
 
-app.post("/convert", async (req, res) => {
+app.post("/convert", (req, res) => {
   const { replacements } = req.body;
 
   // Validate input
@@ -33,43 +33,39 @@ app.post("/convert", async (req, res) => {
           // Handle image replacement
           htmlContent = htmlContent.replace(regex, `<img src="${replaceWord}" style="width: 550px; height: 400px;" />`);
         } else {
-          if ( replaceWord == "notFound" || replaceWord == "" ) {
-            console.log("replaceWord", replaceWord , replaceWord == "");
+          if (replaceWord == "notFound" || replaceWord == "") {
+            console.log("replaceWord", replaceWord, replaceWord == "");
 
             // Handle empty string replacement
             htmlContent = htmlContent.replace(regex, " ");
-  
-   }else{
-          // Regular text replacement or empty string
-          htmlContent = htmlContent.replace(regex, replaceWord);
-
-   }
+          } else {
+            // Regular text replacement or empty string
+            htmlContent = htmlContent.replace(regex, replaceWord);
+          }
         }
       } else {
-
         console.error(`Invalid replacement for ${searchWord}.`);
       }
     }
 
-    // Launch Puppeteer to generate the PDF
-    const browser = await puppeteer.launch();
-    const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: "load" });
-
-    // Save PDF to file
+    // Generate the PDF
     const pdfPath = path.join(__dirname, "converted", "contrat.pdf");
-    await page.pdf({ path: pdfPath, format: "A4" });
-    await browser.close();
-
-    // Send the PDF file as response
-    res.sendFile(pdfPath, (err) => {
+    pdf.create(htmlContent).toFile(pdfPath, (err, result) => {
       if (err) {
-        console.error("Error sending file:", err);
-        res.status(500).send("Failed to send the PDF file.");
+        console.error("Error generating PDF:", err);
+        return res.status(500).send("An error occurred during HTML to PDF conversion.");
       }
 
-      // Clean up the temporary file
-      fs.unlinkSync(pdfPath);
+      // Send the PDF file as response
+      res.sendFile(result.filename, (err) => {
+        if (err) {
+          console.error("Error sending file:", err);
+          res.status(500).send("Failed to send the PDF file.");
+        }
+
+        // Clean up the temporary file
+        fs.unlinkSync(result.filename);
+      });
     });
   } catch (error) {
     console.error("Error during conversion:", error);
@@ -79,7 +75,7 @@ app.post("/convert", async (req, res) => {
 
 const templatePaths = path.join(__dirname, "templates", "facture.html");
 
-app.post("/convertFacture", async (req, res) => {
+app.post("/convertFacture", (req, res) => {
   const { replacements } = req.body;
 
   // Validate input
@@ -100,43 +96,39 @@ app.post("/convertFacture", async (req, res) => {
           // Handle image replacement
           htmlContent = htmlContent.replace(regex, `<img src="${replaceWord}" style="width: 700px; height: 500px;" />`);
         } else {
-          if ( replaceWord == "notFound" || replaceWord == "" ) {
-            console.log("replaceWord", replaceWord , replaceWord == "");
+          if (replaceWord == "notFound" || replaceWord == "") {
+            console.log("replaceWord", replaceWord, replaceWord == "");
 
             // Handle empty string replacement
             htmlContent = htmlContent.replace(regex, " ");
-  
-   }else{
-          // Regular text replacement or empty string
-          htmlContent = htmlContent.replace(regex, replaceWord);
-
-   }
+          } else {
+            // Regular text replacement or empty string
+            htmlContent = htmlContent.replace(regex, replaceWord);
+          }
         }
       } else {
-
         console.error(`Invalid replacement for ${searchWord}.`);
       }
     }
 
-    // Launch Puppeteer to generate the PDF
-    const browser = await puppeteer.launch();
-    const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: "load" });
-
-    // Save PDF to file
+    // Generate the PDF
     const pdfPath = path.join(__dirname, "converted", "contrat.pdf");
-    await page.pdf({ path: pdfPath, format: "A4" });
-    await browser.close();
-
-    // Send the PDF file as response
-    res.sendFile(pdfPath, (err) => {
+    pdf.create(htmlContent).toFile(pdfPath, (err, result) => {
       if (err) {
-        console.error("Error sending file:", err);
-        res.status(500).send("Failed to send the PDF file.");
+        console.error("Error generating PDF:", err);
+        return res.status(500).send("An error occurred during HTML to PDF conversion.");
       }
 
-      // Clean up the temporary file
-      fs.unlinkSync(pdfPath);
+      // Send the PDF file as response
+      res.sendFile(result.filename, (err) => {
+        if (err) {
+          console.error("Error sending file:", err);
+          res.status(500).send("Failed to send the PDF file.");
+        }
+
+        // Clean up the temporary file
+        fs.unlinkSync(result.filename);
+      });
     });
   } catch (error) {
     console.error("Error during conversion:", error);
